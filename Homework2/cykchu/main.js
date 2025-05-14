@@ -12,166 +12,127 @@ let distrMargin = {top: 10, right: 30, bottom: 30, left: 60},
     distrWidth = 400 - distrMargin.left - distrMargin.right,
     distrHeight = 350 - distrMargin.top - distrMargin.bottom;
 
-let teamLeft = 0, teamTop = 400;
-let teamMargin = {top: 10, right: 30, bottom: 30, left: 60},
-    teamWidth = width - teamMargin.left - teamMargin.right,
-    teamHeight = height-450 - teamMargin.top - teamMargin.bottom;
+let sankeyLeft = 0, SankeyTop = 400;
+let sankeyMargin = {top: 10, right: 30, bottom: 30, left: 60},
+    sankeyWidth = width - sankeyMargin.left - sankeyMargin.right,
+    sankeyHeight = height-450 - sankeyMargin.top - sankeyMargin.bottom;
+console.log("Main.js is running");
 
 // plots
-d3.csv("players.csv").then(rawData =>{
+d3.csv("./data/pokemon.csv").then(rawData =>{
     console.log("rawData", rawData);
 
     rawData.forEach(function(d){
-        d.AB = Number(d.AB);
-        d.H = Number(d.H);
-        d.salary = Number(d.salary);
-        d.SO = Number(d.SO);
+        d.Attack = Number(d.Attack);
+        d.Defense = Number(d.Defense);
+        d.HP = Number(d.HP);
+        d.Speed = Number(d.Speed);
+        d.Total = Number(d.Total);
+        d.Generation = "Gen " + Number(d.Generation);
+        d["Type_1"] = d["Type_1"];
+        d["Body_Style"] = d["Body_Style"];
+        d.Legendary = d.Legendary === "True";
+    });
+
+    // data processing for sankey 
+    const linksRaw = [];
+    const nodeSet = new Set();
+
+    d3.rollups(
+        rawData,
+        v => v.length,
+        d => d.Generation,
+        d => d["Type_1"],
+    ).forEach(([gen, typeList]) => {
+        typeList.forEach(([type, count]) => {
+            linksRaw.push({source: gen, target: type, value: count});
+            nodeSet.add(gen);
+            nodeSet.add(type);
+        });
+    });
+
+    d3.rollups(
+        rawData,
+        v => v.length,
+        d => d["Type_1"],
+        d => d["Body_Style"],
+    ).forEach(([type, bodyList]) => {
+        bodyList.forEach(([body, count]) => {
+            linksRaw.push({source: type, target: body, value: count});
+            nodeSet.add(type);
+            nodeSet.add(body);
+        });
+    });
+
+    const nodesRaw = Array.from(nodeSet).map(name => ({
+        name,
+        category: name.split(" ")[0]
+    }));
+
+    // plot 3: Sankey
+    const svg = d3.select("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .attr("viewBox", [0, 0, width, height])
+        .attr("style", "max-width: 100%; height: auto; font: 10px sans-serif;");
+    
+    const sankeyGroup = svg.append("g")
+        .attr("transform", `translate(${sankeyMargin.left}, ${SankeyTop})`);
+
+    const sankey = d3.sankey()
+        .nodeId(d => d.name)
+        .nodeAlign(d3.sankeyLeft)
+        .nodeWidth(15)
+        .nodePadding(10)
+        .extent([[0, 0], [sankeyWidth, sankeyHeight]])
+;
+
+    const sankeyResult = sankey({
+        nodes: nodesRaw.map(d => ({ ...d })),
+        links: linksRaw.map(d => ({ ...d }))
     });
 
 
-    const filteredData = rawData.filter(d=>d.AB>abFilter);
-    const processedData = filteredData.map(d=>{
-                          return {
-                              "H_AB":d.H/d.AB,
-                              "SO_AB":d.SO/d.AB,
-                              "teamID":d.teamID,
-                          };
-    });
-    console.log("processedData", processedData);
+    const nodes = sankeyResult.nodes;
+    const links = sankeyResult.links;
 
-    //plot 1: Scatter Plot
-    const svg = d3.select("svg");
+    const color = d3.scaleOrdinal(d3.schemeCategory10);
 
-    const g1 = svg.append("g")
-                .attr("width", scatterWidth + scatterMargin.left + scatterMargin.right)
-                .attr("height", scatterHeight + scatterMargin.top + scatterMargin.bottom)
-                .attr("transform", `translate(${scatterMargin.left}, ${scatterMargin.top})`);
+    // nodes
+    sankeyGroup.append("g")
+        .attr("stroke", "#000")
+        .selectAll("rect")
+        .data(nodes)
+        .join("rect")
+        .attr("x", d => d.x0)
+        .attr("y", d => d.y0)
+        .attr("height", d => d.y1 - d.y0)
+        .attr("width", d => d.x1 - d.x0)
+        .attr("fill", d => color(d.name.split(" ")[0]))
+        .append("title")
+        .text(d => `${d.name}\n${d.value} Pokémon`);
 
-    // X label
-    g1.append("text")
-    .attr("x", scatterWidth / 2)
-    .attr("y", scatterHeight + 50)
-    .attr("font-size", "20px")
-    .attr("text-anchor", "middle")
-    .text("H/AB");
+    // paths represent links
+    sankeyGroup.append("g")
+        .attr("fill", "none")
+        .attr("stroke-opacity", 0.5)
+        .selectAll("path")
+        .data(links)
+        .join("path")
+        .attr("d", d3.sankeyLinkHorizontal())
+        .attr("stroke", d => color(d.source.name.split(" ")[0]))
+        .attr("stroke-width", d => Math.max(1, d.width))
+        .append("title")
+        .text(d => `${d.source.name} → ${d.target.name}\n${d.value} Pokémon`);
 
-
-    // Y label
-    g1.append("text")
-    .attr("x", -(scatterHeight / 2))
-    .attr("y", -40)
-    .attr("font-size", "20px")
-    .attr("text-anchor", "middle")
-    .attr("transform", "rotate(-90)")
-    .text("SO/AB");
-
-    // X ticks
-    const x1 = d3.scaleLinear()
-    .domain([0, d3.max(processedData, d => d.H_AB)])
-    .range([0, scatterWidth]);
-
-    const xAxisCall = d3.axisBottom(x1)
-                        .ticks(7);
-    g1.append("g")
-    .attr("transform", `translate(0, ${scatterHeight})`)
-    .call(xAxisCall)
+    sankeyGroup.append("g")
     .selectAll("text")
-        .attr("y", "10")
-        .attr("x", "-5")
-        .attr("text-anchor", "end")
-        .attr("transform", "rotate(-40)");
+    .data(nodes)
+    .join("text")
+    .attr("x", d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+    .attr("y", d => (d.y1 + d.y0) / 2)
+    .attr("dy", "0.35em")
+    .attr("text-anchor", d => d.x0 < width / 2 ? "start" : "end")
+    .text(d => d.name);
 
-    // Y ticks
-    const y1 = d3.scaleLinear()
-    .domain([0, d3.max(processedData, d => d.SO_AB)])
-    .range([scatterHeight, 0]);
-
-    const yAxisCall = d3.axisLeft(y1)
-                        .ticks(13);
-    g1.append("g").call(yAxisCall);
-
-    // circles
-    const circles = g1.selectAll("circle").data(processedData);
-
-    circles.enter().append("circle")
-         .attr("cx", d => x1(d.H_AB))
-         .attr("cy", d => y1(d.SO_AB))
-         .attr("r", 5)
-         .attr("fill", "#69b3a2");
-
-    const g2 = svg.append("g")
-                .attr("width", distrWidth + distrMargin.left + distrMargin.right)
-                .attr("height", distrHeight + distrMargin.top + distrMargin.bottom)
-                .attr("transform", `translate(${distrLeft}, ${distrTop})`);
-
-    //plot 2: Bar Chart for Team Player Count
-
-    const teamCounts = processedData.reduce((s, { teamID }) => (s[teamID] = (s[teamID] || 0) + 1, s), {});
-    const teamData = Object.keys(teamCounts).map((key) => ({ teamID: key, count: teamCounts[key] }));
-    console.log("teamData", teamData);
-
-
-    const g3 = svg.append("g")
-                .attr("width", teamWidth + teamMargin.left + teamMargin.right)
-                .attr("height", teamHeight + teamMargin.top + teamMargin.bottom)
-                .attr("transform", `translate(${teamMargin.left}, ${teamTop})`);
-
-    // X label
-    g3.append("text")
-    .attr("x", teamWidth / 2)
-    .attr("y", teamHeight + 50)
-    .attr("font-size", "20px")
-    .attr("text-anchor", "middle")
-    .text("Team");
-
-
-    // Y label
-    g3.append("text")
-    .attr("x", -(teamHeight / 2))
-    .attr("y", -40)
-    .attr("font-size", "20px")
-    .attr("text-anchor", "middle")
-    .attr("transform", "rotate(-90)")
-    .text("Number of players");
-
-    // X ticks
-    const x2 = d3.scaleBand()
-    .domain(teamData.map(d => d.teamID))
-    .range([0, teamWidth])
-    .paddingInner(0.3)
-    .paddingOuter(0.2);
-
-    const xAxisCall2 = d3.axisBottom(x2);
-    g3.append("g")
-    .attr("transform", `translate(0, ${teamHeight})`)
-    .call(xAxisCall2)
-    .selectAll("text")
-        .attr("y", "10")
-        .attr("x", "-5")
-        .attr("text-anchor", "end")
-        .attr("transform", "rotate(-40)");
-
-    // Y ticks
-    const y2 = d3.scaleLinear()
-    .domain([0, d3.max(teamData, d => d.count)])
-    .range([teamHeight, 0])
-    .nice();
-
-    const yAxisCall2 = d3.axisLeft(y2)
-                        .ticks(6);
-    g3.append("g").call(yAxisCall2);
-
-    // bars
-    const bars = g3.selectAll("rect").data(teamData);
-
-    bars.enter().append("rect")
-    .attr("y", d => y2(d.count))
-    .attr("x", d => x2(d.teamID))
-    .attr("width", x2.bandwidth())
-    .attr("height", d => teamHeight - y2(d.count))
-    .attr("fill", "steelblue");
-
-
-    }).catch(function(error){
-    console.log(error);
 });
