@@ -7,10 +7,15 @@ const barMargin = { top: 20, right: 30, bottom: 50, left: 60 };
 const barHeight = 300;
 const barWidth = width - barMargin.left - barMargin.right;
 
-const sankeyTop = barTop + barHeight + 150;
+const sankeyTop = barTop + barHeight + 110;
 const sankeyMargin = { top: 20, right: 30, bottom: 30, left: 60 };
 const sankeyWidth = width - sankeyMargin.left - sankeyMargin.right;
 const sankeyHeight = 350;
+
+const scatterLeft = 0, scatterTop = sankeyTop + sankeyHeight + 50;
+const scatterMargin = { top: 10, right: 30, bottom: 40, left: 60 };
+const scatterWidth = width - scatterMargin.left - scatterMargin.right;
+const scatterHeight = 400;
 
 const starTop = sankeyTop + sankeyHeight + 50;
 const starMargin = { top: 20, right: 30, bottom: 30, left: 60 };
@@ -158,6 +163,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
     barGroup.append("text")
         .attr("x", 0)
         .attr("y", -10)
+        .attr("font-size", "16px")
         .attr("font-weight", "bold")
         .text("Average Total Stat by Type_1");    
         //y   
@@ -174,6 +180,9 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         .attr("text-anchor", "middle")
         .text("Primary Type");
 
+    // Interaction: Brushing
+    let selectedTypes = [];
+    
     // Interaction: Selection -- bar -> sankey
 
     let selectedType = null;
@@ -301,6 +310,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
     sankeyGroup.append("text")
         .attr("x", 0)
         .attr("y", -10)
+        .attr("font-size", "16px")
         .attr("font-weight", "bold")
         .text("Sankey: Generation → Type_1 → Body Style");
     
@@ -340,13 +350,114 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
             .style("opacity", 1);
     }
 
+    // plot 3
+    const scatterGroup = svg.append("g")
+        .attr("transform", `translate(${scatterLeft + scatterMargin.left}, ${scatterTop})`);
 
+    // Scales
+    const x3 = d3.scaleLinear()
+        .domain(d3.extent(rawData, d => +d.Attack))
+        .range([0, scatterWidth]);
 
-    // plot 3: Star Coordinate: Stat profile of a selected Pokémon
-    //
-    // Provides a detailed view on individual stat balance using radial layout.
+    const y3 = d3.scaleLinear()
+        .domain(d3.extent(rawData, d => +d.Defense))
+        .range([scatterHeight, 0]);
+
+    // Axes
+    scatterGroup.append("g")
+        .attr("transform", `translate(0, ${scatterHeight})`)
+        .call(d3.axisBottom(x3));
+
+    scatterGroup.append("g")
+        .call(d3.axisLeft(y3));
     
-    const starStats = ["HP", "Attack", "Defense", "Sp_Atk", "Sp_Def", "Speed"];
+    // Title
+    svg.append("text")
+        .attr("x", scatterLeft + scatterMargin.left)
+        .attr("y", scatterTop - 15)
+        .attr("font-size", "16px")
+        .attr("font-weight", "bold")
+        .text("Scatter Plot: Attack vs. Defense");
+
+
+    // Axis Labels
+    scatterGroup.append("text")
+        .attr("x", scatterWidth / 2)
+        .attr("y", scatterHeight + 35)
+        .attr("text-anchor", "middle")
+        .attr("font-weight", "bold")
+        .text("Attack");
+
+    scatterGroup.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -scatterHeight / 2)
+        .attr("y", -45)
+        .attr("text-anchor", "middle")
+        .attr("font-weight", "bold")
+        .text("Defense");
+
+    // Points
+    const dots = scatterGroup.append("g")
+        .selectAll("circle")
+        .data(rawData)
+        .join("circle")
+        .attr("cx", d => x3(+d.Attack))
+        .attr("cy", d => y3(+d.Defense))
+        .attr("r", 4)
+        .attr("fill", d => typeColor(d.Type_1))
+        .attr("opacity", 0.7);
+
+    // Brushing tooltip 
+    const scatterTooltip = svg.append("foreignObject")
+        .attr("x", scatterLeft + scatterWidth - 200)
+        .attr("y", scatterTop)
+        .attr("width", 180)
+        .attr("height", 150)
+        .append("xhtml:div")
+        .attr("id", "scatter-tooltip")
+        .style("font", "12px sans-serif")
+        .style("background", "#f9f9f9")
+        .style("border", "1px solid #ccc")
+        .style("border-radius", "4px")
+        .style("padding", "8px")
+        .style("overflow-y", "scroll")
+        .style("height", "140px")
+        .style("width", "170px")
+        .style("display", "none");
+
+    // Brushing
+    const brush = d3.brush()
+        .extent([[0, 0], [scatterWidth, scatterHeight]])
+        .on("start brush end", (event) => {
+    const selection = event.selection;
+    let selectedData = [];
+
+    if (selection) {
+        const [[x0, y0], [x1, y1]] = selection;
+        dots.attr("stroke", d => {
+        const within = x3(+d.Attack) >= x0 && x3(+d.Attack) <= x1 &&
+        y3(+d.Defense) >= y0 && y3(+d.Defense) <= y1;
+        if (within) selectedData.push(d);
+        return within ? "black" : null;
+    });
+
+    // Update and show tooltip
+    scatterTooltip.style("display", "block")
+        .html(`<b>Selected Pokémon:</b><br>${selectedData.map(d => `${d.Type_1} - ${d.Name}`).join("<br>")}`);
+
+    } else {
+        dots.attr("stroke", null);
+        scatterTooltip.style("display", "none").html("");
+    }
+    });
+
+    scatterGroup.append("g")
+        .call(brush);
+   
+   
+        // Provides a detailed view on individual stat balance using radial layout.
+    
+/*     const starStats = ["HP", "Attack", "Defense", "Sp_Atk", "Sp_Def", "Speed"];
     const maxStatValue = 255;
     const starRadius = 200;
 
@@ -437,5 +548,5 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         .attr("font-weight", "bold")
         .text("Pokémon Stat Profile (Star Coordinate)");
 
-    drawStar(rawData.find(d => d.Name === "Charizard") || rawData[0]);
+    drawStar(rawData.find(d => d.Name === "Charizard") || rawData[0]); */
 });
