@@ -1,3 +1,4 @@
+// Layout
 let abFilter = 25;
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -21,6 +22,7 @@ const starTop = sankeyTop + sankeyHeight + 50;
 const starMargin = { top: 20, right: 30, bottom: 30, left: 60 };
 const starHeight = 400;
 
+// color scales for type and generation
 const typeColor = d3.scaleOrdinal()
   .domain([
     "Normal", "Fire", "Water", "Electric", "Grass", "Ice", "Fighting",
@@ -37,6 +39,7 @@ const genColor = d3.scaleOrdinal()
   .domain(["Gen I", "Gen II", "Gen III", "Gen IV", "Gen V", "Gen VI", "Gen VII", "Gen VIII", "Gen IX"])
   .range(["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c"]);
 
+// execution check
 console.log("Main.js is running");
 
 // plots
@@ -58,6 +61,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
     });
 
     //data processing for Bar
+    // average total stat by type_1
     const typeStatsMap = {};
     rawData.forEach(d => {
         const type = d["Type_1"];
@@ -76,9 +80,11 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
     typeAvgTotal.sort((a, b) => b.avg -a.avg);
 
     // data processing for sankey 
+    // create nodes and links 
     const linksRaw = [];
     const nodeSet = new Set();
 
+    // links from gen to type_1
     d3.rollups(
         rawData,
         v => v.length,
@@ -92,6 +98,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         });
     });
 
+    // links from type_1 to body_style
     d3.rollups(
         rawData,
         v => v.length,
@@ -147,6 +154,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
 
     barGroup.append("g")
         .call(d3.axisLeft(y1));
+        
     // bars 
     const bars = barGroup.append("g")
         .selectAll("rect")
@@ -179,12 +187,9 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         .attr("y", barHeight + 50)
         .attr("text-anchor", "middle")
         .text("Primary Type");
-
-    // Interaction: Brushing
-    let selectedTypes = [];
-    
+ 
     // Interaction: Selection -- bar -> sankey
-
+    // Clicking a bar highlights it and filters the Sankey diagram
     let selectedType = null;
 
     bars
@@ -240,6 +245,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
     const sankeyGroup = svg.append("g")
         .attr("transform", `translate(${sankeyMargin.left}, ${sankeyTop})`)
 
+    // Sankey layout
     const sankey = d3.sankey()
         .nodeId(d => d.name)
         .nodeAlign(d3.sankeyLeft)
@@ -248,6 +254,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         .extent([[0, 0], [sankeyWidth, sankeyHeight]])
 ;
 
+    // Sankey data
     const sankeyResult = sankey({
         nodes: nodesRaw.map(d => ({ ...d })),
         links: linksRaw.map(d => ({ ...d }))
@@ -297,6 +304,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         .append("title")
         .text(d => `${d.source.name} → ${d.target.name}\n${d.value} Pokémon`);
 
+    // nodes labels
     sankeyGroup.append("g")
         .selectAll("text")
         .data(nodes)
@@ -307,6 +315,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         .attr("text-anchor", d => d.x0 < width / 2 ? "start" : "end")
         .text(d => d.name);
 
+    // title
     sankeyGroup.append("text")
         .attr("x", 0)
         .attr("y", -10)
@@ -314,7 +323,9 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         .attr("font-weight", "bold")
         .text("Sankey: Generation → Type_1 → Body Style");
     
-    // Sankey functoin for Selection, Pan and Zoom
+    // Sankey functions for interaction
+
+    // Filter Sankey diagram based on selected Type_1
     function filterSankeyByType(type){
         sankeyGroup.selectAll("path")
             .transition()
@@ -337,7 +348,8 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
             });
 
     }
-    
+
+    // Reset Sankey diagram to default
     function resetSankeyHighlight(){
         sankeyGroup.selectAll("path")
             .transition()
@@ -350,11 +362,12 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
             .style("opacity", 1);
     }
 
-    // plot 3
+    // plot 3: Scatter Plot - Attack vs Defense
+    // Interaction: shows individual pokemon with brushing interaction
     const scatterGroup = svg.append("g")
         .attr("transform", `translate(${scatterLeft + scatterMargin.left}, ${scatterTop})`);
 
-    // Scales
+    // scales
     const x3 = d3.scaleLinear()
         .domain(d3.extent(rawData, d => +d.Attack))
         .range([0, scatterWidth]);
@@ -363,7 +376,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         .domain(d3.extent(rawData, d => +d.Defense))
         .range([scatterHeight, 0]);
 
-    // Axes
+    // axes
     scatterGroup.append("g")
         .attr("transform", `translate(0, ${scatterHeight})`)
         .call(d3.axisBottom(x3));
@@ -371,7 +384,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
     scatterGroup.append("g")
         .call(d3.axisLeft(y3));
     
-    // Title
+    // title
     svg.append("text")
         .attr("x", scatterLeft + scatterMargin.left)
         .attr("y", scatterTop - 15)
