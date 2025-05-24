@@ -3,7 +3,7 @@ let abFilter = 25;
 const width = window.innerWidth;
 const height = window.innerHeight;
 
-const barTop = 50;
+const barTop = 20;
 const barMargin = { top: 20, right: 30, bottom: 50, left: 60 };
 const barHeight = 300;
 const barWidth = width - barMargin.left - barMargin.right;
@@ -22,7 +22,12 @@ const starTop = sankeyTop + sankeyHeight + 50;
 const starMargin = { top: 20, right: 30, bottom: 30, left: 60 };
 const starHeight = 400;
 
-// color scales for type and generation
+/*
+I intentionally did not include a legend in this assignment because I believe the user can easily
+reference the corresponding color with types by looking at the bar chart.
+*/
+
+// color scales for type, generation and body style
 const typeColor = d3.scaleOrdinal()
   .domain([
     "Normal", "Fire", "Water", "Electric", "Grass", "Ice", "Fighting",
@@ -38,6 +43,10 @@ const typeColor = d3.scaleOrdinal()
 const genColor = d3.scaleOrdinal()
   .domain(["Gen I", "Gen II", "Gen III", "Gen IV", "Gen V", "Gen VI", "Gen VII", "Gen VIII", "Gen IX"])
   .range(["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c"]);
+
+const bodyStyleColor = d3.scaleOrdinal()
+  .domain(["bipedal", "quadruped", "wings", "head", "armor", "insectoid", "fish", "serpentine", "blob", "ball", "tentacles", "upright", "wings, quadruped", "legs", "arms", "multiple bodies", "tentacles, blob"])
+  .range(["#1f77b4", "#8c564b", "#2ca02c", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf", "#d62728", "#9467bd", "#ff7f0e", "#aec7e8", "#d62728", "#98df8a", "#c5b0d5", "#f7b6d2", "#ff9896", "#c49c94"]);
 
 // execution check
 console.log("Main.js is running");
@@ -278,6 +287,7 @@ d3.csv("./data/pokemon.csv").then(rawData =>{
         .attr("fill", d => {
             if (d.depth === 0) return genColor(d.name);       
             if (d.depth === 1) return typeColor(d.name);      
+            if (d.depth === 2) return bodyStyleColor(d.name);
             return "#ccc";                                    
             })
         .append("title")
